@@ -1,0 +1,328 @@
+<template>
+  <UContainer>
+    <UHeader to="">
+      <template #title>
+        <span class="text-2xl text-green-600">DNumber</span>
+        <Logo class="h-6 w-auto" />
+      </template>
+
+      <UNavigationMenu :items="items" />
+
+      <template #right>
+        <UColorModeButton />
+      </template>
+
+      <template #body>
+        <UNavigationMenu :items="items" orientation="vertical" class="-mx-2.5" />
+      </template>
+    </UHeader>
+
+    <UMain>
+      <UPageSection
+        title="Simple game made in Nuxt + NuxtUI"
+        icon="i-lucide-rocket"
+        description="The rule is sample. Try to devine the number genrated by the app. No biggie, DNumber help you to find the number. Just be SMART."
+      >
+        <UContainer class="flex fill-red-200 content-between gap-2" v-if="!notView">
+          <div class="bg-[#2F2F2F] p-5 rounded-lg shadow-md w-140 text-white">
+            <p>
+              Sélectionnez le niveau de jeu...
+            </p><br>
+            <URadioGroup v-model="selected" variant="card" size="lg" indicator="end" :items="[{ label: 'Facile', value: 'Facile' }, { label: 'Moyen', value: 'Moyen' }, { label: 'Difficile', value: 'Difficile' }]" />
+            <UButton @click="activate" variant="ghost" size="xl" class="cursor-pointer text-center ml-6">
+              Accepter
+            </UButton><br>
+          </div>
+          <div class="bg-[#2F2F2F] p-5 rounded-lg shadow-md w-140 text-white">
+            <p>
+              Joueur connu sous l'email <span class="text-green-600 font-bold underline">{{ email ? email : 'duckpanpan@duck.com' }}</span>
+            </p><br>
+            <h4 class="text-center font-bold m-2 mb-4">
+              Description du niveau
+            </h4>
+            <div class="flex flex-col" v-html="description" ></div><br>
+            <UButton @click="reloadNuxtApp()" variant="ghost" size="xl" class="cursor-pointer ml-6" v-if="(message.toString().includes('😎😎')? true : false)">
+              Start a new game
+            </UButton>
+          </div>
+        </UContainer>
+        <UContainer class="flex fill-red-200 content-between gap-2" v-if="notView">
+          <div class="bg-[#2F2F2F] p-5 rounded-lg shadow-md w-140 text-white">
+            <p>
+              DNumber had already generated the number. Which number it is ?
+            </p><br>
+            <UInput v-model="nbreUser" :disabled="game_over" type="number" size="xl" color="primary" icon="i-lucide-binary"></UInput>
+            <UButton @click="checkNumber(nbreUser)" variant="ghost" size="xl" class="cursor-pointer ml-6" :disabled="game_over">
+              Vérifier
+            </UButton><br>
+            <h6>Nombre de tentatives restantes: <span class="text-green-600 text-lg m-1">{{ tentatives }}</span></h6>
+            <UProgress v-model="progress" :color="(tempsRestant <= 10) ? 'error' : 'info'" class="m-3" />
+            <p>{{ tempsRestant }} s restantes</p>
+          </div>
+          <div class="bg-[#2F2F2F] p-5 rounded-lg shadow-md w-140 text-white">
+            <p>
+              Joueur connu sous l'email <span class="text-green-600 font-bold underline">{{ email }}</span>
+            </p><br>
+            <h4 class="text-center font-bold">
+              Indication
+            </h4>
+            <p>{{ message }}</p><br>
+            <h4 class="text-center font-bold">
+              Score
+            </h4>
+            <p>
+              Vous êtes à {{ score }} points
+            </p><br>
+            <UButton @click="desactive" variant="ghost" size="xl" class="cursor-pointer ml-6" v-if="game_over">
+              Choose another level
+            </UButton>
+          </div>
+        </UContainer>
+      </UPageSection>
+    </UMain>
+
+    <UFooter>
+      <template #left>
+        <p class="text-muted text-sm">
+          Copyright © {{ new Date().getFullYear() }}
+        </p>
+      </template>
+      <template #right>
+        <UButton
+          icon="i-simple-icons-discord"
+          color="neutral"
+          variant="ghost"
+          to="https://go.nuxt.com/discord"
+          target="_blank"
+          aria-label="Discord"
+        />
+        <UButton
+          icon="i-simple-icons-x"
+          color="neutral"
+          variant="ghost"
+          to="https://go.nuxt.com/x"
+          target="_blank"
+          aria-label="X"
+        />
+        <UButton
+          icon="i-simple-icons-github"
+          color="neutral"
+          variant="ghost"
+          to="https://github.com/nuxt/nuxt"
+          target="_blank"
+          aria-label="GitHub"
+        />
+      </template>
+    </UFooter>
+  </UContainer>
+</template>
+
+<script setup lang="ts">
+import type { NavigationMenuItem } from '@nuxt/ui'
+import { useRoute, usePersonneStore } from '#imports'
+
+const user = usePersonneStore()
+user.initializeIdentifiers()
+const tempsRestant = ref(60)
+const route = useRoute()
+const nbreUser = ref(0)
+const notView = ref(false)
+const nbreGen = ref(0)
+const game_over = ref(false)
+const tentatives = ref(10)
+const message = ref('')
+let nom: string | undefined
+let email: string | undefined
+let phoneNumber: string | undefined
+let interval: ReturnType<typeof setInterval> | undefined
+const toast = useToast()
+const selected = ref('Facile')
+const progress = ref(100)
+const score = ref(0)
+const description = ref('<p>Le nombre à déviner est entre 1 et 50.</p><br><p>Vous avez 10 essais.</p><br><p>Le temps limite est de 1 minute, soit 60 secondes.</p>')
+const items = computed<NavigationMenuItem[]>(() => [
+  {
+    label: 'Home',
+    to: '/',
+    icon: 'i-lucide-house',
+    active: route.path.startsWith('')
+  },
+  {
+    label: 'S\'enregistrer',
+    to: '/insription',
+    icon: 'i-lucide-log-in',
+    active: route.path.startsWith('/insription')
+  },
+  {
+    label: 'Play',
+    icon: 'i-lucide-gamepad',
+    to: '/play',
+    active: route.path.startsWith('/play')
+  }
+])
+const checkNumber = (nbre: number) => {
+  console.log('temps restant: ' + tempsRestant.value)
+  let tempsInitial = 0
+  let essaisMax = 0
+  if (selected.value == 'Facile') {
+    tempsInitial = 60
+    essaisMax = 10
+  } else if (selected.value == 'Moyen') {
+    tempsInitial = 40
+    essaisMax = 8
+  } else {
+    tempsInitial = 30
+    essaisMax = 6
+  }
+  if (Number(tentatives.value) > 0) {
+    if (nbre == nbreGen.value) {
+      message.value = 'Félicitations ' + nom?.toString() + ' 😎😎'
+      toast.add({
+        title: 'Great 👌',
+        description: 'Félicitations, vous avez trouvé le nombre caché 😁',
+        duration: 2000,
+        closeIcon: 'i-lucide-arrow-right',
+        color: 'info'
+      })
+      clearInterval(interval)
+      tentatives.value = essaisMax
+      interval = setInterval(() => {
+        if (tempsRestant.value > 0) {
+          tempsRestant.value--
+          progress.value = (tempsRestant.value / 60) * 100
+        } else {
+          clearInterval(interval)
+        }
+      }, 1000)
+      score.value += Math.round((tempsRestant.value / tempsInitial) * (essaisMax / (essaisMax - tentatives.value + 1) * 0.2 * 100))
+      auto()
+    } else if (nbre < nbreGen.value) {
+      message.value = 'Essayez encore, votre nombre est bas'
+    } else {
+      message.value = 'Essayez encore, votre nombre est haut'
+    }
+    console.log(phoneNumber)
+    tentatives.value -= 1
+  } else {
+    toast.add({
+      title: 'Erreur',
+      description: 'Plus de tentatives restantes',
+      duration: 3000,
+      closeIcon: 'i-lucide-x',
+      color: 'error'
+    })
+    game_over.value = true
+  }
+}
+
+const activate = () => {
+  notView.value = true
+  if (selected.value == 'Facile') {
+    tentatives.value = 10
+    tempsRestant.value = 60
+    GenNumber()
+    console.log('Nombre généré: ' + nbreGen.value)
+  } else if (selected.value == 'Moyen') {
+    tentatives.value = 8
+    tempsRestant.value = 40
+    GenNumber()
+    console.log('Nombre généré: ' + nbreGen.value)
+  } else {
+    tentatives.value = 6
+    tempsRestant.value = 30
+    GenNumber()
+    console.log('Nombre généré: ' + nbreGen.value)
+  }
+}
+const desactive = () => {
+  notView.value = false
+  nbreUser.value = 0
+  interval = setInterval(() => {
+    if (tempsRestant.value > 0) {
+      tempsRestant.value--
+      progress.value = (tempsRestant.value / 60) * 100
+    } else {
+      clearInterval(interval)
+    }
+  }, 1000)
+  message.value = ''
+}
+const GenNumber = () => {
+  if (selected.value == 'Facile') {
+    nbreGen.value = Math.floor(Math.random() * 50) + 1
+  } else if (selected.value == 'Moyen') {
+    nbreGen.value = Math.floor(Math.random() * 100) + 1
+  } else {
+    nbreGen.value = Math.floor(Math.random() * 200) + 1
+  }
+}
+
+watch(selected, (val) => {
+  if (val == 'Facile') {
+    description.value = '<p>Le nombre à déviner est entre 1 et 50.</p><br><p>Vous avez 10 essais.</p><br><p>Le temps limite est de 1 minute, soit 60 secondes.</p>'
+  } else if (val == 'Moyen') {
+    description.value = '<p>Le nombre à déviner est entre 1 et 100.</p><br><p>Vous avez 8 essais.</p><br><p>Le temps limite est de 40 secondes.</p>'
+  } else {
+    description.value = '<p>Le nombre à déviner est entre 1 et 200.</p><br><p>Vous avez 6 essais.</p><br><p>Le temps limite est de 30 secondes.</p>'
+  }
+})
+
+watch(tempsRestant, (val) => {
+  if (val == 0) {
+    toast.add({
+      title: 'Not more time',
+      description: 'Temps écoulé',
+      duration: 3000,
+      closeIcon: 'i-lucide-x',
+      color: 'error'
+    })
+    game_over.value = true
+  }
+})
+
+watch(game_over, () => {
+  message.value = 'Sorry, it was not a lucky game for you'
+  clearInterval(interval)
+})
+
+const auto = () => {
+  if (selected.value == 'Facile') {
+    tentatives.value = 10
+    tempsRestant.value = 60
+    nbreUser.value = 0
+    progress.value = 100
+    GenNumber()
+    console.log('Nombre généré: ' + nbreGen.value)
+  } else if (selected.value == 'Moyen') {
+    tentatives.value = 8
+    nbreUser.value = 0
+    progress.value = 100
+    tempsRestant.value = 40
+    GenNumber()
+    console.log('Nombre généré: ' + nbreGen.value)
+  } else {
+    tentatives.value = 6
+    nbreUser.value = 0
+    progress.value = 100
+    tempsRestant.value = 30
+    GenNumber()
+    console.log('Nombre généré: ' + nbreGen.value)
+  }
+}
+
+onMounted(() => {
+  [nom, email, phoneNumber] = user.getIdentifiers()
+  interval = setInterval(() => {
+    if (tempsRestant.value > 0) {
+      tempsRestant.value--
+      progress.value = (tempsRestant.value / 60) * 100
+    } else {
+      clearInterval(interval)
+    }
+  }, 1000)
+})
+
+onUnmounted(() => {
+  clearInterval(interval)
+})
+</script>
